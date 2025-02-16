@@ -47,7 +47,3 @@ func (a *AST) Create() *Node {
 
 	return root
 }
-
-func print(n Node){
-	
-}
