@@ -5,15 +5,15 @@ import (
 	"unicode"
 )
 
-type Node struct {
-	TokenType  string
-	TokenValue string
+type Token struct {
+	Type  string
+	Value string
 }
 
-func GetTokens(vv string) []Node {
+func GetTokens(vv string) []Token {
 	vv = wrapWithBrackets(vv)
 
-	parsed := make([]Node, 0, len(vv))
+	parsed := make([]Token, 0, len(vv))
 	for _, v := range vv {
 		for _, rule := range rules {
 			value := string(v)
@@ -21,9 +21,9 @@ func GetTokens(vv string) []Node {
 			if !ok {
 				continue
 			}
-			parsed = append(parsed, Node{
-				TokenType:  token,
-				TokenValue: value,
+			parsed = append(parsed, Token{
+				Type:  token,
+				Value: value,
 			})
 		}
 	}
