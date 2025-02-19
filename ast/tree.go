@@ -1,10 +1,11 @@
 package main
 
 type Node struct {
-	value  interface{}
-	parent *Node
-	left   *Node
-	right  *Node
+	value      interface{}
+	parent     *Node
+	left       *Node
+	right      *Node
+	translated string
 }
 
 func NewTree(v interface{}) *Node {
@@ -41,4 +42,3 @@ func (n *Node) AddRight(v interface{}) *Node {
 func (n *Node) AddParent(parent *Node) {
 	n.parent = parent
 }
-
