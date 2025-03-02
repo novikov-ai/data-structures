@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"sort"
 	"time"
 )
 
@@ -23,16 +24,15 @@ func colorize(c int, text string) string {
 type Node struct {
 	Left, Right           *Node
 	ColorLeft, ColorRight int
+	ID                    int
 }
 
-// Leaf связывает листья двух деревьев и хранит цвет соединяющей ветви.
 type Leaf struct {
 	Tree1 *Node
 	Tree2 *Node
 	Color int
 }
 
-// BWT представляет двоичное спаянное (склеенное) дерево.
 type BWT struct {
 	Tree1     *Node
 	Tree2     *Node
@@ -42,16 +42,24 @@ type BWT struct {
 	Symmetric bool
 }
 
-// Если symmetric == true, второе дерево создаётся зеркальным по цветам относительно первого.
-func NewBWT(depth, numColors int, symmetric bool) *BWT {
+type Path struct {
+	Colors []int  
+	Leaf   *Node
+	Count  int    
+}
+
+func NewBWT(depth, numColors, startID int, symmetric bool) *BWT {
 	rand.Seed(time.Now().UnixNano())
 
-	tree1 := buildTree(depth, numColors)
+	nextID1 := startID
+	tree1 := buildTree(depth, numColors, &nextID1)
+
 	var tree2 *Node
+	nextID2 := nextID1
 	if symmetric {
-		tree2 = buildMirrorTree(tree1)
+		tree2 = buildMirrorTree(tree1, &nextID2)
 	} else {
-		tree2 = buildTree(depth, numColors)
+		tree2 = buildTree(depth, numColors, &nextID2)
 	}
 
 	bwt := &BWT{
@@ -65,27 +73,34 @@ func NewBWT(depth, numColors int, symmetric bool) *BWT {
 	return bwt
 }
 
-func buildTree(depth, numColors int) *Node {
+func buildTree(depth, numColors int, nextID *int) *Node {
 	if depth <= 0 {
 		return nil
 	}
-	node := &Node{}
+
+	node := &Node{ID: *nextID}
+	(*nextID)++
+
 	assignColors(node, numColors)
-	node.Left = buildTree(depth-1, numColors)
-	node.Right = buildTree(depth-1, numColors)
+	node.Left = buildTree(depth-1, numColors, nextID)
+	node.Right = buildTree(depth-1, numColors, nextID)
 	return node
 }
 
-func buildMirrorTree(src *Node) *Node {
+func buildMirrorTree(src *Node, nextID *int) *Node {
 	if src == nil {
 		return nil
 	}
+
 	node := &Node{
 		ColorLeft:  src.ColorRight,
 		ColorRight: src.ColorLeft,
+		ID:         *nextID,
 	}
-	node.Left = buildMirrorTree(src.Left)
-	node.Right = buildMirrorTree(src.Right)
+	(*nextID)++
+
+	node.Left = buildMirrorTree(src.Left, nextID)
+	node.Right = buildMirrorTree(src.Right, nextID)
 	return node
 }
 
@@ -103,10 +118,13 @@ func getLeaves(node *Node) []*Node {
 	if node == nil {
 		return nil
 	}
+
 	if node.Left == nil && node.Right == nil {
 		return []*Node{node}
 	}
-	leaves := getLeaves(node.Left)
+
+	var leaves []*Node
+	leaves = append(leaves, getLeaves(node.Left)...)
 	leaves = append(leaves, getLeaves(node.Right)...)
 	return leaves
 }
@@ -127,11 +145,73 @@ func (b *BWT) linkLeaves() {
 	}
 }
 
+// Сложность алгоритма экспоненциальная!
+// (O(D*2^D))
+func (b *BWT) FindOptimalPaths(targetColor int, minimize bool) ([]Path, []Path) {
+	var paths1, paths2 []Path
+	collectPaths(b.Tree1, []int{}, &paths1)
+	collectPaths(b.Tree2, []int{}, &paths2)
+
+	for i := range paths1 {
+		paths1[i].Count = countColor(paths1[i].Colors, targetColor)
+	}
+	for i := range paths2 {
+		paths2[i].Count = countColor(paths2[i].Colors, targetColor)
+	}
+
+	sortPaths(paths1, minimize)
+	sortPaths(paths2, minimize)
+
+	return paths1, paths2
+}
+
+func collectPaths(node *Node, currentColors []int, paths *[]Path) {
+	if node == nil {
+		return
+	}
+
+	if node.Left == nil && node.Right == nil {
+		*paths = append(*paths, Path{
+			Colors: append([]int{}, currentColors...),
+			Leaf:   node,
+		})
+		return
+	}
+
+	if node.Left != nil {
+		collectPaths(node.Left, append(currentColors, node.ColorLeft), paths)
+	}
+	if node.Right != nil {
+		collectPaths(node.Right, append(currentColors, node.ColorRight), paths)
+	}
+}
+
+func countColor(colors []int, target int) int {
+	count := 0
+	for _, c := range colors {
+		if c == target {
+			count++
+		}
+	}
+	return count
+}
+
+func sortPaths(paths []Path, minimize bool) {
+	sort.Slice(paths, func(i, j int) bool {
+		if minimize {
+			return paths[i].Count < paths[j].Count
+		}
+		return paths[i].Count > paths[j].Count
+	})
+}
+
 func printTreeColored(node *Node, prefix string, isTail bool, branchColor string) {
 	if node == nil {
 		return
 	}
+
 	fmt.Print(prefix)
+	fmt.Printf("{%v}", node.ID)
 	if branchColor != "" {
 		fmt.Print(branchColor, "→")
 	}
@@ -168,6 +248,7 @@ func printTreeColoredInverted(node *Node, prefix string, isTail bool, branchColo
 		return
 	}
 	fmt.Print(prefix)
+	fmt.Printf("{%v}", node.ID)
 	if branchColor != "" {
 		fmt.Print(branchColor, "→")
 	}
