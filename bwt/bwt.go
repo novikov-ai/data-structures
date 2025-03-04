@@ -294,3 +294,85 @@ func (b *BWT) Print() {
 	fmt.Println("\n=== Tree 2 (Inverted) ===")
 	printTreeColoredInverted(b.Tree2, "", true, "")
 }
+
+// Случайное блуждание требует примерно O(√N) шагов для достижения цели.
+func (b *BWT) RandomWalk(targetID int) (*Node, int) {
+	current := b.Tree1
+	steps := 0
+
+	for current.ID != targetID {
+		steps++
+		move := rand.Intn(3) // 0 - влево, 1 - вправо, 2 - случайный переход между деревьями
+
+		switch move {
+		case 0:
+			if current.Left != nil {
+				current = current.Left
+			}
+		case 1:
+			if current.Right != nil {
+				current = current.Right
+			}
+		case 2:
+			for _, link := range b.LeafLinks {
+				if link.Tree1 == current {
+					current = link.Tree2
+					break
+				} else if link.Tree2 == current {
+					current = link.Tree1
+					break
+				}
+			}
+		}
+	}
+
+	return current, steps
+}
+
+// Квантовое блуждание находит цель быстрее, но требует управления экспоненциальным ростом состояний.
+func (b *BWT) QuantumWalk(targetID int, maxStates int) (*Node, int) {
+	type State struct {
+		Node  *Node
+		Steps int
+	}
+
+	states := []State{{Node: b.Tree1, Steps: 0}}
+	visited := make(map[int]bool)
+
+	for len(states) > 0 {
+		newStates := []State{}
+		for _, state := range states {
+			if state.Node.ID == targetID {
+				return state.Node, state.Steps
+			}
+
+			if !visited[state.Node.ID] {
+				visited[state.Node.ID] = true
+
+				if state.Node.Left != nil {
+					newStates = append(newStates, State{Node: state.Node.Left, Steps: state.Steps + 1})
+				}
+				if state.Node.Right != nil {
+					newStates = append(newStates, State{Node: state.Node.Right, Steps: state.Steps + 1})
+				}
+				for _, link := range b.LeafLinks {
+					if link.Tree1 == state.Node {
+						newStates = append(newStates, State{Node: link.Tree2, Steps: state.Steps + 1})
+					} else if link.Tree2 == state.Node {
+						newStates = append(newStates, State{Node: link.Tree1, Steps: state.Steps + 1})
+					}
+				}
+			}
+		}
+
+		// Ограничение количества состояний
+		if len(newStates) > maxStates {
+			rand.Shuffle(len(newStates), func(i, j int) { newStates[i], newStates[j] = newStates[j], newStates[i] })
+			newStates = newStates[:maxStates]
+		}
+
+		states = newStates
+	}
+
+	return nil, -1 // Не найден
+}
